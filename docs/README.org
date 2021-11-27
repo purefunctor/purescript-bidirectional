@@ -1,1 +1,4 @@
 * purescript-bidirectional
+
+An implementation of [[https://www.cl.cam.ac.uk/~nk480/bidir.pdf][Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism]] in
+PureScript. Partially adapted from [[https://github.com/ollef/Bidirectional][ollef/Bidirectional]].
