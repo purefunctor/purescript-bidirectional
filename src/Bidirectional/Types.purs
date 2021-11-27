@@ -10,10 +10,10 @@ import Data.Foldable (class Foldable)
 import Data.Generic.Rep (class Generic)
 import Data.List (List(..))
 import Data.List as List
-import Data.Set (Set)
-import Data.Set as Set
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
+import Data.Set (Set)
+import Data.Set as Set
 import Data.Show.Generic (genericShow)
 import Data.Traversable (traverse)
 import Effect (Effect)
@@ -55,6 +55,18 @@ derive instance Newtype TermVar _
 derive newtype instance Eq TermVar
 derive newtype instance Ord TermVar
 derive newtype instance Show TermVar
+
+exprSubstitute ∷ Expr → TermVar → Expr → Expr
+exprSubstitute e n = case _ of
+  EVar m
+    | n == m → e
+    | otherwise → EVar m
+  EUnit → EUnit
+  EAbs m b
+    | n == m → EAbs m b
+    | otherwise → EAbs m (exprSubstitute e n b)
+  EApp x y → EApp (exprSubstitute e n x) (exprSubstitute e n y)
+  EAnn x t → EAnn (exprSubstitute e n x) t
 
 -- | Monomorphic types
 foreign import data Mono ∷ Prim.Type
@@ -107,7 +119,7 @@ tVar ∷ ∀ a. TypeVar → Type a
 tVar n = TVar n refl
 
 tExists ∷ ∀ a. TypeVar → Type a
-tExists n = TVar n refl
+tExists n = TExists n refl
 
 tForall ∷ TypeVar → Type Poly → Type Poly
 tForall n t = TForall n t refl
@@ -155,13 +167,13 @@ typeSubstitute t m = case _ of
   TFun u v _ → tFun (typeSubstitute t m u) (typeSubstitute t m v)
 
 -- | Find all free type variables
-freeTypeVariables :: forall a. Type a -> Set TypeVar
+freeTypeVariables ∷ ∀ a. Type a → Set TypeVar
 freeTypeVariables = case _ of
-  TUnit _      -> Set.empty
-  TVar v _     -> Set.singleton v
-  TForall v t _ -> Set.delete v $ freeTypeVariables t
-  TExists v _   -> Set.singleton v
-  TFun a b _  -> freeTypeVariables a <> freeTypeVariables b
+  TUnit _ → Set.empty
+  TVar v _ → Set.singleton v
+  TForall v t _ → Set.delete v $ freeTypeVariables t
+  TExists v _ → Set.singleton v
+  TFun a b _ → freeTypeVariables a <> freeTypeVariables b
 
 -- | Elements that inhabit the context type consumsed by the algorithm.
 -- |
@@ -250,8 +262,8 @@ breakMarker m (Context c) =
   let
     { init, rest } = List.span (_ /= m) c
   in
-    { init: Context init
-    , rest: Context (List.drop 1 rest)
+    { init: Context (List.drop 1 rest)
+    , rest: Context init
     }
 
 -- | Assert whether a context is free from unsolved existentials.
@@ -283,6 +295,13 @@ contextExists (Context c) = List.foldl isExists Nil c
   where
   isExists xs (CExists x _) = Cons x xs
   isExists xs (CSolved x _ _) = Cons x xs
+  isExists xs _ = xs
+
+-- | Collect all unsolved existentials
+contextUnsolved ∷ ∀ a. Context a → List TypeVar
+contextUnsolved (Context c) = List.foldl isExists Nil c
+  where
+  isExists xs (CExists x _) = Cons x xs
   isExists xs _ = xs
 
 -- | Collect all type variables inside markers.
@@ -427,9 +446,19 @@ fail = throw
 log ∷ String → TypeCheck Unit
 log = liftEffect <<< Console.log
 
-assertWellFormedType :: forall a. Context Incomplete → Type a → TypeCheck Unit
+logShow ∷ ∀ a. Show a ⇒ a → TypeCheck Unit
+logShow = liftEffect <<< Console.logShow
+
+assertWellFormedType ∷ ∀ a. Context Incomplete → Type a → TypeCheck Unit
 assertWellFormedType c t =
   if wellFormedType c t then
     pure unit
   else
     fail $ TypeCheckPanic "Types are not well formed!"
+
+assertWellFormedContext ∷ Context Incomplete → TypeCheck Unit
+assertWellFormedContext c =
+  if wellFormedContext c then
+    pure unit
+  else
+    fail $ TypeCheckPanic "Context is not well formed!"

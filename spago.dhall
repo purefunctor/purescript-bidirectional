@@ -11,6 +11,7 @@
   , "prelude"
   , "run"
   , "safe-coerce"
+  , "tuples"
   , "typelevel-prelude"
   , "unsafe-coerce"
   ]
